@@ -1,0 +1,40 @@
+spring:
+  datasource:
+    url: jdbc:h2:file:./data/testdb;MODE=MySQL;CASE_INSENSITIVE_IDENTIFIERS=TRUE
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  sql:
+    init:
+      mode: never
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
+
+# 上传文件配置
+uploads:
+  root: ${user.home}/solar-panel-detection/uploads
+
+mybatis-plus:
+  mapper-locations: classpath:mapper/**/*.xml
+  type-aliases-package: com.solar.panel.detection.entity
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    map-underscore-to-camel-case: true
+  global-config:
+    db-config:
+      id-type: auto
+    banner: false
+
+server:
+  port: 8080
+
+# JWT 配置
+jwt:
+  secret: solar_panel_detection_secret_key_2024
+  expiration: 604800 # 7天
+
+# FastAPI 服务配置
+fastapi:
+  url: http://localhost:8000

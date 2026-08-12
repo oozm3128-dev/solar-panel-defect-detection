@@ -1,0 +1,51 @@
+# ====== Java / Maven ======
+target/
+*.jar
+*.war
+*.class
+!.mvn/wrapper/maven-wrapper.jar
+
+# ====== Node.js / Frontend ======
+frontend/node_modules/
+frontend/dist/
+
+# ====== Python ======
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+*.egg
+.eggs/
+venv/
+.env
+fastapi/temp/
+
+# ====== IDE ======
+.idea/
+*.iml
+*.swp
+*.swo
+*~
+.vscode/
+
+# ====== Database ======
+data/
+*.db
+*.mv.db
+*.trace.db
+
+# ====== OS ======
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ====== Sensitive ======
+*.log
+logs/
+fastapi/unrecognized/
+fastapi/results/
+fastapi/services/models/
+
+# ====== Documents / Reports ======
+report/
+.trae/
