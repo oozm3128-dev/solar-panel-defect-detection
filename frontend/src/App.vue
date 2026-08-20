@@ -70,7 +70,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { HomeFilled, Camera, Document, User, Setting, SwitchButton } from '@element-plus/icons-vue'
 import { useUserStore } from './store/user'
@@ -94,36 +94,39 @@ const handleLogout = () => {
   router.push('/login')
 }
 
-// 监听路由变化，更新当前页面标题和活跃菜单
+// 更新侧边栏激活项与顶部标题
+const updatePageTitle = (path) => {
+  activeMenu.value = path
+  switch (path) {
+    case '/dashboard':
+      currentPage.value = '数据大盘'
+      break
+    case '/detection':
+      currentPage.value = '检测工作台'
+      break
+    case '/records':
+      currentPage.value = '历史记录'
+      break
+    case '/users':
+      currentPage.value = '用户管理'
+      break
+    case '/profile':
+      currentPage.value = '个人中心'
+      break
+    default:
+      currentPage.value = '数据大盘'
+  }
+}
+
+// 监听路由变化，更新当前页面标题和活跃菜单（路由认证守卫已在 router/index.js 中统一注册）
+watch(() => route.path, (newPath) => {
+  updatePageTitle(newPath)
+})
+
 onMounted(() => {
   // 从本地存储加载用户信息
   userStore.loadUserFromStorage()
-
-  // 监听路由变化
-  router.beforeEach((to, from, next) => {
-    activeMenu.value = to.path
-    // 更新当前页面标题
-    switch (to.path) {
-      case '/dashboard':
-        currentPage.value = '数据大盘'
-        break
-      case '/detection':
-        currentPage.value = '检测工作台'
-        break
-      case '/records':
-        currentPage.value = '历史记录'
-        break
-      case '/users':
-        currentPage.value = '用户管理'
-        break
-      case '/profile':
-        currentPage.value = '个人中心'
-        break
-      default:
-        currentPage.value = '数据大盘'
-    }
-    next()
-  })
+  updatePageTitle(route.path)
 })
 </script>
 

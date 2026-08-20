@@ -4,9 +4,14 @@ import com.solar.panel.detection.common.Result;
 import com.solar.panel.detection.entity.SysUser;
 import com.solar.panel.detection.service.SysUserService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/users")
@@ -19,6 +24,7 @@ public class UserController {
      * 获取所有用户（管理员功能）
      */
     @GetMapping("/all")
+    @PreAuthorize("hasRole('ADMIN')")
     public Result<List<SysUser>> getAllUsers() {
         List<SysUser> users = sysUserService.getAllUsers();
         return Result.success(users);
@@ -37,9 +43,10 @@ public class UserController {
     }
 
     /**
-     * 更新用户信息
+     * 更新用户信息（管理员功能）
      */
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public Result<Void> updateUser(@PathVariable Long id, @RequestBody SysUser user) {
         user.setId(id);
         if (sysUserService.update(user)) {
@@ -53,6 +60,7 @@ public class UserController {
      * 删除用户（管理员功能）
      */
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public Result<Void> deleteUser(@PathVariable Long id) {
         if (sysUserService.deleteUser(id)) {
             return Result.success();
@@ -62,14 +70,29 @@ public class UserController {
     }
 
     /**
-     * 修改密码
+     * 修改密码（从 SecurityContext 取当前用户，不接受客户端传入 userId）
      */
     @PostMapping("/change-password")
-    public Result<Void> changePassword(@RequestParam Long userId, @RequestParam String oldPassword, @RequestParam String newPassword) {
-        if (sysUserService.changePassword(userId, oldPassword, newPassword)) {
+    public Result<Void> changePassword(@RequestBody Map<String, String> passwordData) {
+        SysUser currentUser = getCurrentUser();
+        if (currentUser == null) {
+            return Result.error(401, "未登录");
+        }
+        String oldPassword = passwordData.get("oldPassword");
+        String newPassword = passwordData.get("newPassword");
+        if (sysUserService.changePassword(currentUser.getId(), oldPassword, newPassword)) {
             return Result.success();
         } else {
             return Result.error(400, "原密码错误或修改失败");
         }
+    }
+
+    private SysUser getCurrentUser() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !(authentication.getPrincipal() instanceof UserDetails)) {
+            return null;
+        }
+        String username = ((UserDetails) authentication.getPrincipal()).getUsername();
+        return sysUserService.findByUsername(username);
     }
 }

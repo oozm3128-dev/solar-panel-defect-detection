@@ -1,6 +1,7 @@
 package com.solar.panel.detection.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.solar.panel.detection.entity.DetectionRecord;
 import com.solar.panel.detection.entity.DefectDetail;
 import com.solar.panel.detection.entity.AiAnalysisReport;
@@ -168,8 +169,10 @@ public class DetectionService {
             wrapper.eq("detection_mode", mode);
         }
         wrapper.orderByDesc("detection_time");
+        // 使用 MyBatis-Plus Page 分页，避免拼接 LIMIT 字符串
         if (page != null && size != null) {
-            wrapper.last("LIMIT " + size + " OFFSET " + ((page - 1) * size));
+            Page<DetectionRecord> pageObj = new Page<>(page, size);
+            return detectionRecordMapper.selectPage(pageObj, wrapper).getRecords();
         }
         return detectionRecordMapper.selectList(wrapper);
     }
@@ -202,12 +205,12 @@ public class DetectionService {
         statistics.put("totalDefects", totalDefects);
 
         QueryWrapper<DetectionRecord> monthlyWrapper = new QueryWrapper<>();
-        monthlyWrapper.apply("detection_time >= DATEADD('MONTH', -1, CURRENT_TIMESTAMP())");
+        monthlyWrapper.apply("detection_time >= DATEADD('MONTH', {0}, CURRENT_TIMESTAMP())", -1);
         long monthlyDetection = detectionRecordMapper.selectCount(monthlyWrapper);
         statistics.put("monthlyDetection", monthlyDetection);
 
         QueryWrapper<DefectDetail> monthlyDefectWrapper = new QueryWrapper<>();
-        monthlyDefectWrapper.apply("record_id IN (SELECT id FROM detection_record WHERE detection_time >= DATEADD('MONTH', -1, CURRENT_TIMESTAMP()))");
+        monthlyDefectWrapper.apply("record_id IN (SELECT id FROM detection_record WHERE detection_time >= DATEADD('MONTH', {0}, CURRENT_TIMESTAMP()))", -1);
         long monthlyDefects = defectDetailMapper.selectCount(monthlyDefectWrapper);
         statistics.put("monthlyDefects", monthlyDefects);
 
@@ -221,7 +224,7 @@ public class DetectionService {
         statistics.put("defectTypeStats", defectTypeStats);
 
         QueryWrapper<DetectionRecord> dailyWrapper = new QueryWrapper<>();
-        dailyWrapper.apply("detection_time >= DATEADD('DAY', -7, CURRENT_TIMESTAMP())");
+        dailyWrapper.apply("detection_time >= DATEADD('DAY', {0}, CURRENT_TIMESTAMP())", -7);
         dailyWrapper.select("DATE(detection_time) as date", "COUNT(*) as count");
         dailyWrapper.groupBy("DATE(detection_time)");
         dailyWrapper.orderByAsc("date");

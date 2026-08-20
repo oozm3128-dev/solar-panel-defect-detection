@@ -1,3 +1,4 @@
+import os
 import requests
 import json
 
@@ -5,7 +6,7 @@ class DeepSeekService:
     def __init__(self):
         # 实际使用时，这里应该设置真实的 DeepSeek API 地址和密钥
         self.api_url = "https://api.deepseek.com/v1/chat/completions"
-        self.api_key = "your_api_key_here"
+        self.api_key = os.getenv("DEEPSEEK_API_KEY", "")
     
     def analyze(self, defect_types):
         # 构建 Prompt

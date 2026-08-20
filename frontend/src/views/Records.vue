@@ -152,8 +152,10 @@ import { ref, onMounted, computed } from 'vue'
 import { detectionApi } from '../api'
 import { ElMessage } from 'element-plus'
 import MarkdownIt from 'markdown-it'
+import DOMPurify from 'dompurify'
 
-const md = new MarkdownIt()
+// 禁止 markdown 中直接渲染原始 HTML，并配合 DOMPurify 净化输出，防御 XSS
+const md = new MarkdownIt({ html: false })
 
 // 过滤条件
 const filterForm = ref({
@@ -181,7 +183,7 @@ const currentDefects = ref([])
 const analysisReport = ref(null)
 const analysisHtml = computed(() => {
   if (analysisReport.value) {
-    return md.render(analysisReport.value.analysisContent)
+    return DOMPurify.sanitize(md.render(analysisReport.value.analysisContent))
   }
   return ''
 })

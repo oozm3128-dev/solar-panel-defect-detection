@@ -7,12 +7,13 @@ import com.solar.panel.detection.service.SysUserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
-import javax.sql.DataSource;
-import java.sql.Connection;
-import java.sql.Statement;
+import javax.servlet.http.HttpServletRequest;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -27,86 +28,33 @@ public class AuthController {
     @Autowired
     private BCryptPasswordEncoder passwordEncoder;
 
-    @Autowired
-    private DataSource dataSource;
+    /** 登录限流：每个 IP 每分钟最多 5 次 */
+    private static final int MAX_LOGIN_PER_MINUTE = 5;
+    private static final long WINDOW_MILLIS = 60_000L;
+    private final Map<String, long[]> loginRateMap = new ConcurrentHashMap<>();
 
     /**
-     * ????????
-     */
-    private void createTables() {
-        try (Connection conn = dataSource.getConnection();
-             Statement stmt = conn.createStatement()) {
-            // ?????
-            String createUserTable = "CREATE TABLE IF NOT EXISTS sys_user " +
-                "(id BIGINT AUTO_INCREMENT PRIMARY KEY, " +
-                "username VARCHAR(50), " +
-                "password VARCHAR(100), " +
-                "name VARCHAR(50), " +
-                "avatar LONGTEXT, " +
-                "role VARCHAR(20), " +
-                "created_at TIMESTAMP)";
-            stmt.executeUpdate(createUserTable);
-
-            // ???????
-            String createDetectionTable = "CREATE TABLE IF NOT EXISTS detection_record " +
-                "(id BIGINT AUTO_INCREMENT PRIMARY KEY, " +
-                "user_id BIGINT, " +
-                "detection_mode VARCHAR(20), " +
-                "model_version VARCHAR(20), " +
-                "original_image_path LONGTEXT, " +
-                "result_image_path LONGTEXT, " +
-                "detection_time TIMESTAMP)";
-            stmt.executeUpdate(createDetectionTable);
-
-            // ???????
-            String createDefectTable = "CREATE TABLE IF NOT EXISTS defect_detail " +
-                "(id BIGINT AUTO_INCREMENT PRIMARY KEY, " +
-                "record_id BIGINT, " +
-                "defect_type VARCHAR(50), " +
-                "confidence DOUBLE, " +
-                "x INT, " +
-                "y INT, " +
-                "w INT, " +
-                "h INT)";
-            stmt.executeUpdate(createDefectTable);
-
-            // ??AI?????
-            String createAiReportTable = "CREATE TABLE IF NOT EXISTS ai_analysis_report " +
-                "(id BIGINT AUTO_INCREMENT PRIMARY KEY, " +
-                "record_id BIGINT, " +
-                "analysis_content TEXT, " +
-                "created_at TIMESTAMP)";
-            stmt.executeUpdate(createAiReportTable);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    /**
-     * ??
+     * 登录
      */
     @PostMapping("/login")
     public Result<Map<String, Object>> login(@RequestBody Map<String, String> loginData) {
-        // ???????
-        createTables();
+        String clientIp = getClientIp();
+        if (isRateLimited(clientIp)) {
+            return Result.error(429, "登录请求过于频繁，请稍后再试");
+        }
 
         String username = loginData.get("username");
         String password = loginData.get("password");
 
         SysUser user = sysUserService.findByUsername(username);
         if (user == null) {
-            // ??????????????????
-            user = new SysUser();
-            user.setUsername(username);
-            user.setPassword(password);
-            user.setName("????");
-            user.setRole("user");
-            sysUserService.register(user);
-        } else if (!passwordEncoder.matches(password, user.getPassword())) {
-            return Result.error(401, "????????");
+            return Result.error(401, "用户名或密码错误");
+        }
+        if (!passwordEncoder.matches(password, user.getPassword())) {
+            return Result.error(401, "用户名或密码错误");
         }
 
-        // ?? JWT ??
+        // 生成 JWT 令牌
         String token = jwtUtils.generateToken(user.getId(), user.getUsername(), user.getRole());
 
         Map<String, Object> response = new HashMap<>();
@@ -117,25 +65,25 @@ public class AuthController {
     }
 
     /**
-     * ??
+     * 注册
      */
     @PostMapping("/register")
     public Result<Void> register(@RequestBody SysUser user) {
-        // ??????????
+        // 校验用户名是否已存在
         if (sysUserService.findByUsername(user.getUsername()) != null) {
-            return Result.error(400, "??????");
+            return Result.error(400, "用户名已存在");
         }
 
-        // ????
+        // 注册用户
         if (sysUserService.register(user)) {
             return Result.success();
         } else {
-            return Result.error(500, "????");
+            return Result.error(500, "注册失败");
         }
     }
 
     /**
-     * ????????
+     * 获取当前登录用户信息
      */
     @GetMapping("/current")
     public Result<SysUser> getCurrentUser(@RequestHeader("Authorization") String authorization) {
@@ -143,5 +91,34 @@ public class AuthController {
         Long userId = jwtUtils.getUserIdFromToken(token);
         SysUser user = sysUserService.findById(userId);
         return Result.success(user);
+    }
+
+    private boolean isRateLimited(String ip) {
+        long now = System.currentTimeMillis();
+        // entry[0] = 窗口起始时间, entry[1] = 窗口内请求计数
+        long[] entry = loginRateMap.compute(ip, (k, v) -> {
+            if (v == null || now - v[0] > WINDOW_MILLIS) {
+                return new long[]{now, 1};
+            }
+            v[1] = v[1] + 1;
+            return v;
+        });
+        return entry[1] > MAX_LOGIN_PER_MINUTE;
+    }
+
+    private String getClientIp() {
+        try {
+            HttpServletRequest request = ((ServletRequestAttributes) RequestContextHolder.getRequestAttributes()).getRequest();
+            String ip = request.getHeader("X-Forwarded-For");
+            if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+                ip = request.getHeader("X-Real-IP");
+            }
+            if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+                ip = request.getRemoteAddr();
+            }
+            return ip == null ? "unknown" : ip;
+        } catch (Exception e) {
+            return "unknown";
+        }
     }
 }
