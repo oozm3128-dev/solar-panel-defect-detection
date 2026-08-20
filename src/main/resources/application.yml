@@ -20,7 +20,6 @@ mybatis-plus:
   mapper-locations: classpath:mapper/**/*.xml
   type-aliases-package: com.solar.panel.detection.entity
   configuration:
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
     map-underscore-to-camel-case: true
   global-config:
     db-config:
@@ -30,9 +29,9 @@ mybatis-plus:
 server:
   port: 8080
 
-# JWT 配置
+# JWT 配置（生产环境请通过环境变量 JWT_SECRET 覆盖）
 jwt:
-  secret: solar_panel_detection_secret_key_2024
+  secret: ${JWT_SECRET:change-me-in-production-please-use-random-secret-key-64bytes-minimum-length-required}
   expiration: 604800 # 7天
 
 # FastAPI 服务配置

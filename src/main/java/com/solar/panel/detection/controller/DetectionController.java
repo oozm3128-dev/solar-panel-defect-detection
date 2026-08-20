@@ -25,22 +25,24 @@ public class DetectionController {
     private JwtUtils jwtUtils;
 
     /**
-     * ????
+     * 检测图片
      */
     @PostMapping("/image")
     public Result<Map<String, Object>> detectImage(
             @RequestParam("file") MultipartFile file,
-            @RequestParam("modelVersion") String modelVersion
+            @RequestParam("modelVersion") String modelVersion,
+            @RequestHeader("Authorization") String authorization
     ) throws IOException {
-        // ????ID
-        Long userId = 1L;
+        // 从 JWT 中获取当前用户 ID
+        String token = authorization.substring(7);
+        Long userId = jwtUtils.getUserIdFromToken(token);
 
         Map<String, Object> result = detectionService.detectImage(file, modelVersion, userId);
         return Result.success(result);
     }
 
     /**
-     * ????
+     * 分析缺陷
      */
     @PostMapping("/analyze/{recordId}")
     public Result<AiAnalysisReport> analyzeDefects(
@@ -51,7 +53,7 @@ public class DetectionController {
     }
 
     /**
-     * ????????
+     * 获取检测记录列表
      */
     @GetMapping("/records")
     public Result<List<DetectionRecord>> getDetectionRecords(
@@ -65,7 +67,7 @@ public class DetectionController {
     }
 
     /**
-     * ??????
+     * 获取缺陷详情
      */
     @GetMapping("/defects/{recordId}")
     public Result<List<DefectDetail>> getDefectDetails(
@@ -76,7 +78,7 @@ public class DetectionController {
     }
 
     /**
-     * ??AI????
+     * 获取AI分析报告
      */
     @GetMapping("/analysis/{recordId}")
     public Result<AiAnalysisReport> getAiAnalysisReport(
@@ -87,7 +89,7 @@ public class DetectionController {
     }
     
     /**
-     * ??检测记录详情
+     * 获取检测记录详情
      */
     @GetMapping("/record/{recordId}")
     public Result<DetectionRecord> getDetectionRecord(
