@@ -48,7 +48,4 @@ CREATE TABLE IF NOT EXISTS ai_analysis_report (
     FOREIGN KEY (record_id) REFERENCES detection_record(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 插入初始测试数据
-INSERT INTO sys_user (username, password, name, avatar, role) VALUES
-('admin', '$2a$10$eW6f5KqHf7L8G8t7X6y5eOe5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e', '管理员', 'https://example.com/avatar/admin.jpg', 'admin'),
-('user1', '$2a$10$eW6f5KqHf7L8G8t7X6y5eOe5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e', '用户1', 'https://example.com/avatar/user1.jpg', 'user');
+-- 默认用户由应用启动时通过 DatabaseInitConfig 初始化，不在脚本中插入明文密码。
