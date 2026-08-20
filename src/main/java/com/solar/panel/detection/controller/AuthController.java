@@ -7,9 +7,13 @@ import com.solar.panel.detection.service.SysUserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
+import javax.servlet.http.HttpServletRequest;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -24,11 +28,21 @@ public class AuthController {
     @Autowired
     private BCryptPasswordEncoder passwordEncoder;
 
+    /** 登录限流：每个 IP 每分钟最多 5 次 */
+    private static final int MAX_LOGIN_PER_MINUTE = 5;
+    private static final long WINDOW_MILLIS = 60_000L;
+    private final Map<String, long[]> loginRateMap = new ConcurrentHashMap<>();
+
     /**
      * 登录
      */
     @PostMapping("/login")
     public Result<Map<String, Object>> login(@RequestBody Map<String, String> loginData) {
+        String clientIp = getClientIp();
+        if (isRateLimited(clientIp)) {
+            return Result.error(429, "登录请求过于频繁，请稍后再试");
+        }
+
         String username = loginData.get("username");
         String password = loginData.get("password");
 
@@ -77,5 +91,34 @@ public class AuthController {
         Long userId = jwtUtils.getUserIdFromToken(token);
         SysUser user = sysUserService.findById(userId);
         return Result.success(user);
+    }
+
+    private boolean isRateLimited(String ip) {
+        long now = System.currentTimeMillis();
+        // entry[0] = 窗口起始时间, entry[1] = 窗口内请求计数
+        long[] entry = loginRateMap.compute(ip, (k, v) -> {
+            if (v == null || now - v[0] > WINDOW_MILLIS) {
+                return new long[]{now, 1};
+            }
+            v[1] = v[1] + 1;
+            return v;
+        });
+        return entry[1] > MAX_LOGIN_PER_MINUTE;
+    }
+
+    private String getClientIp() {
+        try {
+            HttpServletRequest request = ((ServletRequestAttributes) RequestContextHolder.getRequestAttributes()).getRequest();
+            String ip = request.getHeader("X-Forwarded-For");
+            if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+                ip = request.getHeader("X-Real-IP");
+            }
+            if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+                ip = request.getRemoteAddr();
+            }
+            return ip == null ? "unknown" : ip;
+        } catch (Exception e) {
+            return "unknown";
+        }
     }
 }
